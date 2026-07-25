@@ -31,6 +31,10 @@ let ocrWorker: Worker | undefined;
 let captureLoopActive = false;
 let ocrBusy = false;
 let lastOcrAt = 0;
+let ocrScanCount = 0;
+let lastDetectedTexts: string[] = [];
+let lastOcrDurationMs = 0;
+let ocrPhase: "idle" | "loading" | "scanning" | "ready" | "error" = "idle";
 let displayedCrop: CropRect = { ...state.crop };
 let cropInteraction: CropInteraction | undefined;
 
@@ -87,6 +91,10 @@ window.addEventListener("beforeunload", () => {
 async function startCapture(): Promise<void> {
   try {
     captureLoopActive = true;
+    ocrScanCount = 0;
+    lastDetectedTexts = [];
+    lastOcrDurationMs = 0;
+    ocrPhase = "loading";
     window.market.setCaptureStatus("starting", "正在连接直播伴侣窗口");
     captureStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
     elements.captureVideo.srcObject = captureStream;
@@ -99,6 +107,7 @@ async function startCapture(): Promise<void> {
     void runOcrLoop();
   } catch (error) {
     captureLoopActive = false;
+    ocrPhase = "error";
     window.market.setCaptureStatus("error", `捕获失败：${errorMessage(error)}`);
   }
 }
@@ -111,6 +120,7 @@ function stopCapture(): void {
   elements.previewFrame.classList.remove("active");
   elements.captureToggle.innerHTML = '<i data-lucide="scan-line"></i><span>开始捕获</span>';
   elements.ocrActivity.textContent = "OCR IDLE";
+  ocrPhase = "idle";
   createIcons({ icons });
   window.market.setCaptureStatus("idle", "捕获已停止");
 }
@@ -124,13 +134,22 @@ async function runOcrLoop(): Promise<void> {
     ocrBusy = true;
     lastOcrAt = Date.now();
     try {
+      const scanStartedAt = performance.now();
+      ocrPhase = "scanning";
       elements.ocrActivity.textContent = "OCR SCANNING";
+      renderRanking(state);
       const detections = await recognizeCurrentFrame();
+      lastOcrDurationMs = performance.now() - scanStartedAt;
+      ocrScanCount += 1;
+      lastDetectedTexts = detections.map((item) => item.text);
+      ocrPhase = "ready";
       if (detections.length > 0) window.market.submitOcrDetections(detections);
       elements.ocrActivity.textContent = detections.length > 0
-        ? `OCR ${detections.map((item) => item.text).join(" / ")}`
-        : "OCR READY";
+        ? `OCR #${ocrScanCount} · ${lastDetectedTexts.join(" / ")} · ${formatScanTime(lastOcrDurationMs)}`
+        : `OCR READY · #${ocrScanCount} · ${formatScanTime(lastOcrDurationMs)}`;
+      renderRanking(state);
     } catch (error) {
+      ocrPhase = "error";
       elements.ocrActivity.textContent = "OCR ERROR";
       window.market.setCaptureStatus("error", `识别失败：${errorMessage(error)}`);
       await delay(1_500);
@@ -148,12 +167,14 @@ async function recognizeCurrentFrame(): Promise<OcrDetection[]> {
   const sourceY = Math.round(video.videoHeight * crop.y);
   const sourceWidth = Math.max(1, Math.round(video.videoWidth * crop.width));
   const sourceHeight = Math.max(1, Math.round(video.videoHeight * crop.height));
-  const scale = 2;
+  const scale = Math.min(2, 640 / sourceWidth, 720 / sourceHeight);
   const canvas = document.createElement("canvas");
-  canvas.width = sourceWidth * scale;
-  canvas.height = sourceHeight * scale;
+  canvas.width = Math.max(1, Math.round(sourceWidth * scale));
+  canvas.height = Math.max(1, Math.round(sourceHeight * scale));
   const context = canvas.getContext("2d", { willReadFrequently: true });
   if (!context) return [];
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = "high";
   context.filter = "grayscale(1) contrast(1.9)";
   context.drawImage(
     video,
@@ -192,6 +213,7 @@ async function getOcrWorker(): Promise<Worker> {
   const ocrBase = new URL("./ocr/", window.location.href).href;
   ocrWorker = await createWorker("eng", OEM.LSTM_ONLY, {
     workerPath: `${ocrBase}worker.min.js`,
+    workerBlobURL: false,
     corePath: ocrBase,
     langPath: ocrBase.replace(/\/$/, ""),
     logger: (message) => {
@@ -253,7 +275,7 @@ function render(next: DashboardState): void {
 
 function renderRanking(next: DashboardState): void {
   if (next.ranking.length === 0) {
-    elements.rankingList.innerHTML = '<div class="empty-row">等待有效数字</div>';
+    elements.rankingList.innerHTML = emptyRankingState(next);
     return;
   }
   const maximum = next.ranking[0]?.count ?? 1;
@@ -263,6 +285,33 @@ function renderRanking(next: DashboardState): void {
       <span class="ranking-label">第 ${index + 1} 位</span>
       <strong class="ranking-count">${entry.count}</strong>
     </div>`).join("");
+}
+
+function emptyRankingState(next: DashboardState): string {
+  if (next.captureStatus === "idle") {
+    return '<div class="empty-row ocr-state"><strong>OCR 未开始</strong><span>开始捕获后统计 1 / 2 / 3</span></div>';
+  }
+  if (next.captureStatus === "starting") {
+    return '<div class="empty-row ocr-state"><strong>正在连接直播伴侣</strong><span>等待画面输入</span></div>';
+  }
+  if (next.captureStatus === "error") {
+    return `<div class="empty-row ocr-state error"><strong>OCR 捕获异常</strong><span>${escapeHtml(next.captureMessage)}</span></div>`;
+  }
+  if (ocrPhase === "loading") {
+    return '<div class="empty-row ocr-state"><strong>OCR 正在初始化</strong><span>正在加载本地识别模型</span></div>';
+  }
+  if (ocrPhase === "scanning" && ocrScanCount === 0) {
+    return '<div class="empty-row ocr-state"><strong>OCR 正在识别首帧</strong><span>识别完成后会显示扫描结果</span></div>';
+  }
+  if (lastDetectedTexts.length > 0) {
+    return `<div class="empty-row ocr-state warn"><strong>识别到 ${escapeHtml(lastDetectedTexts.join(" / "))}</strong><span>未新增票：消息重复或不是商品号</span></div>`;
+  }
+  return `<div class="empty-row ocr-state online"><strong>OCR 正常运行</strong><span>已扫描 ${ocrScanCount} 次 · ${formatScanTime(lastOcrDurationMs)} · 未识别到 1 / 2 / 3</span></div>`;
+}
+
+function formatScanTime(milliseconds: number): string {
+  if (milliseconds < 1_000) return `${Math.round(milliseconds)}ms`;
+  return `${(milliseconds / 1_000).toFixed(1)}s`;
 }
 
 function renderLogs(next: DashboardState): void {
