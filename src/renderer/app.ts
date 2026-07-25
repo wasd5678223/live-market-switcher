@@ -1,5 +1,6 @@
 import { createIcons, icons } from "lucide";
 import { createWorker, OEM, PSM, type Worker } from "tesseract.js";
+import { containsDigit } from "../shared/digit-parser";
 import type { CropRect, DashboardState, OcrDetection } from "../shared/types";
 import "./styles.css";
 
@@ -195,7 +196,7 @@ async function recognizeCurrentFrame(): Promise<OcrDetection[]> {
     for (const paragraph of block.paragraphs) {
       for (const line of paragraph.lines) {
         const text = line.text.normalize("NFKC").trim();
-        if (line.confidence < 45 || !/(?<!\d)\d{1,4}(?!\d)/.test(text)) continue;
+        if (!containsDigit(text)) continue;
         detections.push({
           text,
           fingerprint: fingerprintRow(canvas, line.bbox.y0 - 8, line.bbox.y1 + 8),

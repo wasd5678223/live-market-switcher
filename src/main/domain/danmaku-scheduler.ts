@@ -4,6 +4,7 @@ import type {
   VoteEvent,
   VoteSource,
 } from "../../shared/types";
+import { extractMatchingCodes } from "../../shared/digit-parser";
 
 export type SchedulerSnapshot = {
   current: string;
@@ -34,10 +35,10 @@ export class DanmakuScheduler {
     this.messageIds.add(messageId);
 
     const codes = new Set(
-      text
-        .normalize("NFKC")
-        .match(/(?<!\d)\d{1,4}(?!\d)/g)
-        ?.filter((code) => this.isEnabled(code)) ?? [],
+      extractMatchingCodes(
+        text,
+        this.products.map((product) => product.code).filter((code) => this.isEnabled(code)),
+      ),
     );
 
     const events = [...codes].map((code) => ({

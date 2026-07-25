@@ -51,13 +51,28 @@ describe("danmaku scheduling", () => {
     expect(catalogTie.selectNext()).toBe("3");
   });
 
-  it("ignores unsupported long numbers and skips disabled products", () => {
+  it("extracts catalog digits from continuous OCR runs once per row", () => {
     const scheduler = new DanmakuScheduler(products, "1");
 
-    expect(scheduler.ingestText("订单12345，选2号", "manual", "a", 100)).toHaveLength(1);
+    expect(scheduler.ingestText("221112111", "ocr", "row-a", 100).map((event) => event.code))
+      .toEqual(["1", "2"]);
+    expect(scheduler.ingestText("333333333", "ocr", "row-b", 200).map((event) => event.code))
+      .toEqual(["3"]);
+    expect(scheduler.snapshot().ranking).toEqual([
+      { code: "3", count: 1, lastSeenAt: 200 },
+      { code: "1", count: 1, lastSeenAt: 100 },
+      { code: "2", count: 1, lastSeenAt: 100 },
+    ]);
+  });
+
+  it("ignores unsupported digits and skips disabled products", () => {
+    const scheduler = new DanmakuScheduler(products, "1");
+
+    expect(scheduler.ingestText("只有9号", "manual", "a", 100)).toHaveLength(0);
+    expect(scheduler.ingestText("选2号", "manual", "b", 200)).toHaveLength(1);
     scheduler.disableProduct("2");
     expect(scheduler.snapshot().ranking).toEqual([]);
-    expect(scheduler.ingestText("2号", "manual", "b", 200)).toEqual([]);
+    expect(scheduler.ingestText("2号", "manual", "c", 300)).toEqual([]);
     expect(scheduler.selectNext()).toBe("3");
   });
 });
