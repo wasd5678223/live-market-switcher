@@ -15,7 +15,12 @@ async function createWindow(): Promise<void> {
     const sources = await desktopCapturer.getSources({ types: ["window"] });
     const liveCompanion = sources.find((source) => source.name.trim() === "直播伴侣")
       ?? sources.find((source) => source.name.includes("直播伴侣"));
-    callback(liveCompanion ? { video: liveCompanion } : {});
+    try {
+      callback(liveCompanion ? { video: liveCompanion } : {});
+    } catch (error) {
+      if (liveCompanion) throw error;
+      console.warn("未找到可捕获的直播伴侣窗口");
+    }
   });
 
   mainWindow = new BrowserWindow({
