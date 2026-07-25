@@ -1,0 +1,14 @@
+node_modules/
+dist-main/
+dist-renderer/
+coverage/
+.vite/
+obs-studio/
+downloads/
+media/
+outputs/
+src/renderer/public/ocr/worker.min.js
+src/renderer/public/ocr/tesseract-core*lstm.wasm.js
+eng.traineddata
+config/runtime.json
+*.log

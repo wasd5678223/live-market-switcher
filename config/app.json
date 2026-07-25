@@ -1,0 +1,5 @@
+{
+  "crop": { "x": 0.83, "y": 0.33, "width": 0.155, "height": 0.57 },
+  "ocrIntervalMs": 750,
+  "lockAheadMs": 2000
+}

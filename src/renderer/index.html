@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; worker-src 'self' blob:; connect-src 'self' blob: http://127.0.0.1:*; media-src 'self' blob:"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>卖场调度台</title>
+  </head>
+  <body>
+    <div class="shell">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <div><strong>卖场调度台</strong><span>弹幕驱动播放</span></div>
+        </div>
+        <div class="system-status" aria-label="系统状态">
+          <span id="obs-status" class="status-chip"><i data-lucide="radio"></i>OBS</span>
+          <span id="capture-status" class="status-chip"><i data-lucide="scan-line"></i>弹幕捕获</span>
+          <span id="camera-status" class="status-chip"><i data-lucide="video"></i>虚拟摄像头</span>
+        </div>
+      </header>
+
+      <main class="workspace">
+        <section class="capture-panel" aria-labelledby="capture-title">
+          <div class="section-heading">
+            <div><span class="eyebrow">LIVE INPUT</span><h1 id="capture-title">互动消息捕获</h1></div>
+            <button id="capture-toggle" class="command-button"><i data-lucide="scan-line"></i><span>开始捕获</span></button>
+          </div>
+          <div id="preview-frame" class="preview-frame">
+            <video id="capture-video" autoplay muted playsinline></video>
+            <div id="crop-overlay" class="crop-overlay"><span>识别区域</span></div>
+            <div id="preview-empty" class="preview-empty"><i data-lucide="monitor-up"></i><span>等待直播伴侣窗口</span></div>
+          </div>
+          <div class="capture-footer">
+            <span id="capture-message">等待捕获直播伴侣</span>
+            <span id="ocr-activity" class="mono">OCR IDLE</span>
+          </div>
+        </section>
+
+        <aside class="queue-panel" aria-labelledby="queue-title">
+          <div class="section-heading compact"><div><span class="eyebrow">PLAYOUT</span><h2 id="queue-title">播放轨道</h2></div></div>
+          <div class="play-track current-track">
+            <div class="track-label"><span>当前</span><strong id="current-code">1</strong></div>
+            <div class="track-line"><span id="remaining-label">--:--</span><div class="track-progress"><i id="remaining-progress"></i></div></div>
+          </div>
+          <div class="switch-gate"><span></span><i data-lucide="arrow-down"></i><span></span></div>
+          <div class="play-track next-track">
+            <div class="track-label"><span id="next-state-label">预热</span><strong id="next-code">--</strong></div>
+            <div class="track-line"><span id="next-detail">等待候选</span><i id="lock-icon" data-lucide="flame"></i></div>
+          </div>
+
+          <form id="manual-form" class="manual-form">
+            <label for="manual-message">测试弹幕</label>
+            <div class="input-command">
+              <input id="manual-message" type="text" autocomplete="off" placeholder="例如：我要2号" />
+              <button type="submit" title="提交测试弹幕" aria-label="提交测试弹幕"><i data-lucide="send"></i></button>
+            </div>
+          </form>
+
+          <details class="crop-settings">
+            <summary><i data-lucide="sliders-horizontal"></i>识别区域校准</summary>
+            <div class="slider-grid">
+              <label>X <input data-crop="x" type="range" min="0" max="0.95" step="0.005" /></label>
+              <label>Y <input data-crop="y" type="range" min="0" max="0.95" step="0.005" /></label>
+              <label>宽 <input data-crop="width" type="range" min="0.05" max="1" step="0.005" /></label>
+              <label>高 <input data-crop="height" type="range" min="0.05" max="1" step="0.005" /></label>
+            </div>
+          </details>
+        </aside>
+
+        <section class="ranking-panel" aria-labelledby="ranking-title">
+          <div class="section-heading compact"><div><span class="eyebrow">DEMAND</span><h2 id="ranking-title">号码热度</h2></div><span class="panel-note">锁定后消费票数</span></div>
+          <div id="ranking-list" class="ranking-list"><div class="empty-row">等待有效数字</div></div>
+        </section>
+
+        <section class="log-panel" aria-labelledby="log-title">
+          <div class="section-heading compact"><div><span class="eyebrow">EVENTS</span><h2 id="log-title">运行记录</h2></div></div>
+          <div id="log-list" class="log-list"><div class="empty-row">系统正在启动</div></div>
+        </section>
+      </main>
+    </div>
+    <script type="module" src="/app.ts"></script>
+  </body>
+</html>
