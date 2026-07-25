@@ -3,10 +3,12 @@ dist-main/
 dist-renderer/
 coverage/
 .vite/
+.playwright-cli/
 obs-studio/
 downloads/
 media/
 outputs/
+output/
 src/renderer/public/ocr/worker.min.js
 src/renderer/public/ocr/tesseract-core*lstm.wasm.js
 eng.traineddata

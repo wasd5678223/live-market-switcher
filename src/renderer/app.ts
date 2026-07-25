@@ -31,6 +31,17 @@ let ocrWorker: Worker | undefined;
 let captureLoopActive = false;
 let ocrBusy = false;
 let lastOcrAt = 0;
+let displayedCrop: CropRect = { ...state.crop };
+let cropInteraction: CropInteraction | undefined;
+
+type ResizeHandle = "n" | "ne" | "e" | "se" | "s" | "sw" | "w" | "nw";
+type CropInteraction = {
+  pointerId: number;
+  startClientX: number;
+  startClientY: number;
+  startCrop: CropRect;
+  mode: "move" | ResizeHandle;
+};
 
 createIcons({ icons });
 render(state);
@@ -55,11 +66,18 @@ elements.manualForm.addEventListener("submit", (event) => {
 
 for (const input of document.querySelectorAll<HTMLInputElement>("[data-crop]")) {
   input.addEventListener("input", () => {
-    const crop = cropFromInputs();
-    applyCropOverlay(crop);
+    displayedCrop = boundCrop(cropFromInputs());
+    applyCropOverlay(displayedCrop);
   });
-  input.addEventListener("change", () => window.market.updateCrop(cropFromInputs()));
+  input.addEventListener("change", commitDisplayedCrop);
 }
+
+elements.cropOverlay.addEventListener("pointerdown", beginCropInteraction);
+elements.cropOverlay.addEventListener("pointermove", updateCropInteraction);
+elements.cropOverlay.addEventListener("pointerup", endCropInteraction);
+elements.cropOverlay.addEventListener("pointercancel", endCropInteraction);
+elements.captureVideo.addEventListener("loadedmetadata", () => applyCropOverlay(displayedCrop));
+new ResizeObserver(() => applyCropOverlay(displayedCrop)).observe(elements.previewFrame);
 
 window.addEventListener("beforeunload", () => {
   stopCapture();
@@ -228,8 +246,9 @@ function render(next: DashboardState): void {
   elements.nextDetail.textContent = next.playback.lockedNext ? "等待当前视频结束" : nextCode ? "首帧已准备" : "等待候选";
   renderRanking(next);
   renderLogs(next);
-  syncCropInputs(next.crop);
-  applyCropOverlay(next.crop);
+  if (!cropInteraction) displayedCrop = { ...next.crop };
+  syncCropInputs(displayedCrop);
+  applyCropOverlay(displayedCrop);
 }
 
 function renderRanking(next: DashboardState): void {
@@ -272,10 +291,117 @@ function cropFromInputs(): CropRect {
 }
 
 function applyCropOverlay(crop: CropRect): void {
+  const bounds = displayedVideoBounds();
   Object.assign(elements.cropOverlay.style, {
-    left: `${crop.x * 100}%`, top: `${crop.y * 100}%`,
-    width: `${crop.width * 100}%`, height: `${crop.height * 100}%`,
+    left: `${bounds.x + crop.x * bounds.width}px`,
+    top: `${bounds.y + crop.y * bounds.height}px`,
+    width: `${crop.width * bounds.width}px`,
+    height: `${crop.height * bounds.height}px`,
   });
+}
+
+function beginCropInteraction(event: PointerEvent): void {
+  if (event.button !== 0) return;
+  const handle = (event.target as HTMLElement).closest<HTMLElement>("[data-resize]");
+  cropInteraction = {
+    pointerId: event.pointerId,
+    startClientX: event.clientX,
+    startClientY: event.clientY,
+    startCrop: { ...displayedCrop },
+    mode: (handle?.dataset.resize as ResizeHandle | undefined) ?? "move",
+  };
+  elements.cropOverlay.setPointerCapture(event.pointerId);
+  elements.cropOverlay.classList.add("dragging");
+  event.preventDefault();
+}
+
+function updateCropInteraction(event: PointerEvent): void {
+  const interaction = cropInteraction;
+  if (!interaction || interaction.pointerId !== event.pointerId) return;
+  const bounds = displayedVideoBounds();
+  if (bounds.width <= 0 || bounds.height <= 0) return;
+  const deltaX = (event.clientX - interaction.startClientX) / bounds.width;
+  const deltaY = (event.clientY - interaction.startClientY) / bounds.height;
+  displayedCrop = interaction.mode === "move"
+    ? moveCrop(interaction.startCrop, deltaX, deltaY)
+    : resizeCrop(interaction.startCrop, deltaX, deltaY, interaction.mode);
+  syncCropInputs(displayedCrop);
+  applyCropOverlay(displayedCrop);
+}
+
+function endCropInteraction(event: PointerEvent): void {
+  if (!cropInteraction || cropInteraction.pointerId !== event.pointerId) return;
+  if (elements.cropOverlay.hasPointerCapture(event.pointerId)) {
+    elements.cropOverlay.releasePointerCapture(event.pointerId);
+  }
+  cropInteraction = undefined;
+  elements.cropOverlay.classList.remove("dragging");
+  commitDisplayedCrop();
+}
+
+function commitDisplayedCrop(): void {
+  displayedCrop = boundCrop(displayedCrop);
+  state = { ...state, crop: displayedCrop };
+  syncCropInputs(displayedCrop);
+  applyCropOverlay(displayedCrop);
+  window.market.updateCrop(displayedCrop);
+}
+
+function moveCrop(crop: CropRect, deltaX: number, deltaY: number): CropRect {
+  return {
+    ...crop,
+    x: clamp(crop.x + deltaX, 0, 1 - crop.width),
+    y: clamp(crop.y + deltaY, 0, 1 - crop.height),
+  };
+}
+
+function resizeCrop(
+  crop: CropRect,
+  deltaX: number,
+  deltaY: number,
+  handle: ResizeHandle,
+): CropRect {
+  const minimumSize = 0.05;
+  let left = crop.x;
+  let top = crop.y;
+  let right = crop.x + crop.width;
+  let bottom = crop.y + crop.height;
+  if (handle.includes("w")) left = clamp(crop.x + deltaX, 0, right - minimumSize);
+  if (handle.includes("e")) right = clamp(crop.x + crop.width + deltaX, left + minimumSize, 1);
+  if (handle.includes("n")) top = clamp(crop.y + deltaY, 0, bottom - minimumSize);
+  if (handle.includes("s")) bottom = clamp(crop.y + crop.height + deltaY, top + minimumSize, 1);
+  return { x: left, y: top, width: right - left, height: bottom - top };
+}
+
+function boundCrop(crop: CropRect): CropRect {
+  const width = clamp(crop.width, 0.05, 1);
+  const height = clamp(crop.height, 0.05, 1);
+  return {
+    x: clamp(crop.x, 0, 1 - width),
+    y: clamp(crop.y, 0, 1 - height),
+    width,
+    height,
+  };
+}
+
+function displayedVideoBounds(): { x: number; y: number; width: number; height: number } {
+  const frameWidth = elements.previewFrame.clientWidth;
+  const frameHeight = elements.previewFrame.clientHeight;
+  if (frameWidth <= 0 || frameHeight <= 0) return { x: 0, y: 0, width: 0, height: 0 };
+  const videoRatio = elements.captureVideo.videoWidth > 0 && elements.captureVideo.videoHeight > 0
+    ? elements.captureVideo.videoWidth / elements.captureVideo.videoHeight
+    : 16 / 9;
+  const frameRatio = frameWidth / frameHeight;
+  if (frameRatio > videoRatio) {
+    const width = frameHeight * videoRatio;
+    return { x: (frameWidth - width) / 2, y: 0, width, height: frameHeight };
+  }
+  const height = frameWidth / videoRatio;
+  return { x: 0, y: (frameHeight - height) / 2, width: frameWidth, height };
+}
+
+function clamp(value: number, minimum: number, maximum: number): number {
+  return Math.min(maximum, Math.max(minimum, value));
 }
 
 function setStatus(element: HTMLElement, online: boolean, warning: boolean): void {

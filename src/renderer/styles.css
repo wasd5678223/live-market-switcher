@@ -49,8 +49,18 @@ h1 { font-size: 20px; } h2 { font-size: 16px; }
 .command-button svg { width: 15px; }
 .preview-frame { position: relative; min-height: 0; overflow: hidden; background: #0e100f; border: 1px solid var(--line); }
 .preview-frame video { width: 100%; height: 100%; object-fit: contain; display: block; }
-.crop-overlay { position: absolute; left: 83%; top: 33%; width: 15.5%; height: 57%; border: 1px solid var(--amber); background: color-mix(in srgb, var(--amber) 8%, transparent); pointer-events: none; box-shadow: 0 0 0 9999px rgb(0 0 0 / 18%); }
-.crop-overlay span { position: absolute; top: -24px; right: -1px; padding: 3px 6px; background: var(--amber); color: #1b1e1c; font-size: 10px; }
+.crop-overlay { position: absolute; z-index: 2; left: 83%; top: 33%; width: 15.5%; height: 57%; border: 1px solid var(--amber); background: color-mix(in srgb, var(--amber) 8%, transparent); cursor: move; touch-action: none; user-select: none; box-shadow: 0 0 0 9999px rgb(0 0 0 / 18%); }
+.crop-overlay.dragging { border-color: #ffd17d; background: color-mix(in srgb, var(--amber) 14%, transparent); }
+.crop-label { position: absolute; top: -24px; right: -1px; padding: 3px 6px; background: var(--amber); color: #1b1e1c; font-size: 10px; white-space: nowrap; pointer-events: none; }
+.crop-handle { position: absolute; width: 11px; height: 11px; border: 1px solid #181a19; background: var(--amber); box-shadow: 0 0 0 1px rgb(255 255 255 / 28%); }
+.crop-handle.north-west { left: -6px; top: -6px; cursor: nwse-resize; }
+.crop-handle.north { left: 50%; top: -6px; translate: -50% 0; cursor: ns-resize; }
+.crop-handle.north-east { right: -6px; top: -6px; cursor: nesw-resize; }
+.crop-handle.east { right: -6px; top: 50%; translate: 0 -50%; cursor: ew-resize; }
+.crop-handle.south-east { right: -6px; bottom: -6px; cursor: nwse-resize; }
+.crop-handle.south { left: 50%; bottom: -6px; translate: -50% 0; cursor: ns-resize; }
+.crop-handle.south-west { left: -6px; bottom: -6px; cursor: nesw-resize; }
+.crop-handle.west { left: -6px; top: 50%; translate: 0 -50%; cursor: ew-resize; }
 .preview-empty { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 10px; color: #768079; }
 .preview-empty svg { width: 34px; height: 34px; }
 .preview-frame.active .preview-empty { display: none; }

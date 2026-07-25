@@ -31,7 +31,17 @@
           </div>
           <div id="preview-frame" class="preview-frame">
             <video id="capture-video" autoplay muted playsinline></video>
-            <div id="crop-overlay" class="crop-overlay"><span>识别区域</span></div>
+            <div id="crop-overlay" class="crop-overlay">
+              <span class="crop-label">识别区域</span>
+              <i class="crop-handle north-west" data-resize="nw" aria-hidden="true"></i>
+              <i class="crop-handle north" data-resize="n" aria-hidden="true"></i>
+              <i class="crop-handle north-east" data-resize="ne" aria-hidden="true"></i>
+              <i class="crop-handle east" data-resize="e" aria-hidden="true"></i>
+              <i class="crop-handle south-east" data-resize="se" aria-hidden="true"></i>
+              <i class="crop-handle south" data-resize="s" aria-hidden="true"></i>
+              <i class="crop-handle south-west" data-resize="sw" aria-hidden="true"></i>
+              <i class="crop-handle west" data-resize="w" aria-hidden="true"></i>
+            </div>
             <div id="preview-empty" class="preview-empty"><i data-lucide="monitor-up"></i><span>等待直播伴侣窗口</span></div>
           </div>
           <div class="capture-footer">
